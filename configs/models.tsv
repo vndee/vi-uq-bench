@@ -1,0 +1,9 @@
+key	model_id	temperature	top_p	top_k	system_prompt	extra_args
+phi4	microsoft/phi-4	1.0	0.95	20	Bạn là một trợ lí AI hữu ích. Hãy trả lời người dùng một cách chính xác và ngắn gọn.	
+gemma3	google/gemma-3-12b-it	1.0	0.95	20	Bạn là một trợ lí AI hữu ích. Hãy trả lời người dùng một cách chính xác và ngắn gọn.	
+qwen3	Qwen/Qwen3-8B	1.0	0.95	20	Bạn là một trợ lí AI hữu ích. Hãy trả lời người dùng một cách chính xác và ngắn gọn.	--template-kwargs {"enable_thinking":false} --eos-ids 151643,151668
+llama31	meta-llama/Meta-Llama-3.1-8B-Instruct	1.0	0.95	20	Bạn là một trợ lí AI hữu ích. Hãy trả lời người dùng một cách chính xác và ngắn gọn.	
+sealion	aisingapore/Llama-SEA-LION-v3-8B-IT	0.7	0.9	50	You are a helpful assistant.	
+sailor2	sail/Sailor2-8B-Chat	0.7	0.9	50	You are a helpful assistant.	
+seallms	SeaLLMs/SeaLLMs-v3-7B-Chat	0.7	0.9	50	You are a helpful assistant.	
+vinallama	vilm/vinallama-7b-chat	1.0	0.9	50	Bạn là một trợ lí AI hữu ích. Hãy trả lời người dùng một cách chính xác và ngắn gọn.	

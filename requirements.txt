@@ -1,0 +1,17 @@
+# Analysis (CPU). Versions used for the reported numbers.
+numpy==1.26.4
+scipy==1.17.1
+scikit-learn==1.9.1
+matplotlib==3.11.2
+torch>=2.6          # imported by the vendored NumSemSets; any recent CPU build works
+
+# Pipeline (GPU generation, NLI, judges). Versions used on the A40 runs.
+# Install torch 2.6.0 from the CUDA 12.4 index for generation:
+#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+transformers==4.57.6
+accelerate
+sentencepiece
+protobuf
+pandas
+openai
+requests
