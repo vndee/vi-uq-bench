@@ -1,9 +1,9 @@
-"""Benchmark AUROC for the ten scores, both judges.
+"""Benchmark AUROC for the nine scores, both judges.
 
 The semantic estimators (KLE, DegMat, NumSemSets, SE) are the lm-polygraph
 classes in viuq/lmpg, called on a stats dict built from the stored
-artifacts. MSP, PPL, MTE, MC-SE, AttentionScore and MeanLength are read
-directly from the generation arrays.
+artifacts. MSP, PPL, MTE, MC-SE and MeanLength are read directly from the
+generation arrays.
 
 Conventions:
   * E and C are passed raw (not symmetrised). KLE symmetrises internally;
@@ -30,6 +30,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 from viuq.config import (DISPLAY, GEN_DIR, JUDGE_DIR, KEYS, N, NLI_DIR,  # noqa: E402
                          RESULTS, SCORES)
+
+METHODS = ["KLE", "DegMat", "SE", "NumSets", "MTE", "PPL", "MC-SE", "MSP",
+           "MeanLength"]
 
 
 def labels(key, judge):
@@ -65,7 +68,6 @@ def build_stats(key, view="nli_base"):
     rows.sort(key=lambda r: r["idx"])
     rows = rows[:N]
     A = np.load(os.path.join(GEN_DIR, f"arrays_{key}.npz"), allow_pickle=True)
-    T = np.load(os.path.join(GEN_DIR, f"attn_{key}.npz"))
 
     return {
         "semantic_matrix_entail": E,
@@ -76,7 +78,6 @@ def build_stats(key, view="nli_base"):
         "sample_log_probs": np.asarray(A["sample_seq_logprobs"][:N], float),
         "greedy_log_likelihoods": [list(x) for x in A["greedy_logprobs"][:N]],
         "greedy_entropies": [list(x) for x in A["greedy_entropies"][:N]],
-        "attn": T,
         "n_tokens": np.array([r["greedy_n_tokens"] for r in rows], float),
     }
 
@@ -86,7 +87,6 @@ def main():
     from viuq.lmpg.deg_mat import DegMat
     from viuq.lmpg.num_sem_sets import NumSemSets
     from viuq.lmpg.semantic_classes import SemanticClassesCalculator
-
     from viuq.lmpg.semantic_entropy import SemanticEntropy
     LIB = {"KLE": KernelLanguageEntropy(t=0.3),
            "DegMat": DegMat(similarity_score="NLI_score", affinity="entail"),
@@ -119,7 +119,6 @@ def main():
         scores["MTE"] = np.array([float(np.mean(x)) if len(x) else np.nan
                                   for x in st["greedy_entropies"]])
         scores["MC-SE"] = -st["sample_log_probs"].mean(axis=1)
-        scores["Attn"] = st["attn"]["attn_score"][:N].astype(float)
         scores["MeanLength"] = st["n_tokens"]
         for name, s in scores.items():
             dump[f"{key}/{name}"] = np.asarray(s, float)
@@ -136,8 +135,6 @@ def main():
                 per[j].setdefault(name, {})[key] = float(roc_auc_score(err, s[ok]))
         print(f"  scored {key}", flush=True)
 
-    ORDER = ["KLE", "DegMat", "SE", "NumSets", "MTE", "PPL", "MC-SE", "MSP",
-             "MeanLength", "Attn"]
     out = {}
     for j in ("luna", "gemini"):
         print(f"\n=== BENCHMARK, judge = {j} (AUROC vs error) ===")
@@ -145,7 +142,7 @@ def main():
               + f"{'MACRO':>8s}"
         print(hdr)
         print("-" * len(hdr))
-        for m in ORDER:
+        for m in METHODS:
             if m not in per[j]:
                 continue
             v = [per[j][m].get(k, np.nan) for k in KEYS]
@@ -161,7 +158,7 @@ def main():
     np.savez(ps, **dump)
     print(f"wrote {ps}")
     print("\nEstimators KLE / DegMat / NumSets are lm-polygraph classes called "
-          "directly;\nMSP / PPL / MTE / MC-SE / Attn come from the stored arrays.")
+          "directly;\nMSP / PPL / MTE / MC-SE come from the stored arrays.")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ DATASET = os.environ.get("VIUQ_DATASET", os.path.join(ROOT, "data", "dataset.csv
 ARTIFACTS = os.environ.get("VIUQ_ARTIFACTS", os.path.join(ROOT, "artifacts"))
 RESULTS = os.environ.get("VIUQ_RESULTS", os.path.join(ROOT, "results"))
 
-GEN_DIR = os.path.join(ARTIFACTS, "generations")    # gen_/arrays_/attn_<key>
+GEN_DIR = os.path.join(ARTIFACTS, "generations")    # gen_/arrays_<key>
 NLI_DIR = os.path.join(ARTIFACTS, "nli")            # matrices_<key>.npz
 JUDGE_DIR = os.path.join(ARTIFACTS, "judge")        # judged_<tag>.jsonl
 MANIFEST_DIR = os.path.join(JUDGE_DIR, "manifests")

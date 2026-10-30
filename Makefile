@@ -3,7 +3,7 @@ A  := analysis
 
 .PHONY: generate nli manifests judge-j1 judge-j2 analysis paper-tables check
 
-# GPU: answers, hidden states and AttentionScore for every model in
+# GPU: greedy answers and samples for every model in
 # configs/models.tsv (MODELS="phi4 qwen3" for a subset)
 generate:
 	bash scripts/run_generation.sh $(MODELS)
@@ -26,7 +26,7 @@ judge-j2: manifests
 	  $(PY) pipeline/judge_gemini.py build --tag gemini-$$k --only $$k && \
 	  $(PY) pipeline/judge_gemini.py submit --tag gemini-$$k; done
 
-# CPU: every table and the figure, from the artifacts
+# CPU: every table, the figure and the checks, from the artifacts
 analysis: paper-tables
 
 paper-tables:
@@ -34,15 +34,11 @@ paper-tables:
 	$(PY) $(A)/bootstrap_ci.py
 	$(PY) $(A)/within_task_bench.py
 	$(PY) $(A)/task_control.py
-	$(PY) $(A)/tiers.py
-	$(PY) $(A)/cert_sensitivity.py
+	$(PY) $(A)/per_task.py
 	$(PY) $(A)/cert_final.py
 	$(PY) $(A)/fig_risk_coverage.py
-	$(PY) $(A)/supervised_baseline.py
-	$(PY) $(A)/sup_interaction.py
-	$(PY) $(A)/probe_control.py
-	$(PY) $(A)/budget_control.py
-	$(PY) $(A)/lineage_within.py
+	$(PY) $(A)/cert_sensitivity.py
+	$(PY) $(A)/checks.py
 
 check:
 	$(PY) -m viuq.fingerprint --check artifacts/generations

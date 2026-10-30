@@ -19,7 +19,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 from viuq.config import SCORES  # noqa: E402
 from benchmark import KEYS, N  # noqa: E402
-from tiers import OUT_DIR, auc, load_model  # noqa: E402
+from protocol import OUT_DIR, auc, load_model  # noqa: E402
 
 B = 2000
 PAIRS = [("KLE", "DegMat"), ("KLE", "MTE"), ("KLE", "MeanLength"),

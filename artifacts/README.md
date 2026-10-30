@@ -5,7 +5,7 @@ Run the pipeline (see the main README) to produce them:
 
 ```
 artifacts/
-  generations/   gen_<key>.jsonl, arrays_<key>.npz, attn_<key>.npz, MANIFEST.json
+  generations/   gen_<key>.jsonl, arrays_<key>.npz, MANIFEST.json
   nli/           matrices_<key>.npz
   judge/         manifests/, judged_<tag>.jsonl
 ```

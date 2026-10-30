@@ -5,9 +5,9 @@ Vietnamese LLMs: A Benchmark and Certified Selective Answering*.
 
 The repository contains the full pipeline: generating answers with eight open
 LLMs, building the NLI graphs, judging correctness with two LLM judges,
-scoring nine uncertainty methods, certifying selective answering with
-Learn-then-Test, and training hidden-state probes. It contains **no data and
-no run outputs**. The dataset is available on request (below); everything
+scoring eight uncertainty methods and a length control, and certifying
+selective answering with Learn-then-Test. It contains **no data and no run
+outputs**. The dataset is available on request (below); everything
 else is produced by running the pipeline.
 
 ## Dataset
@@ -43,14 +43,13 @@ API keys are read from the environment only: `HF_TOKEN` (gated models),
 | 3. Judge | `make judge-j1`, `make judge-j2` | API (batch jobs) | `judge/` |
 | 4. Analysis | `make paper-tables` | CPU | `results/` |
 
-**1. Generation** (`pipeline/generate.py`, `pipeline/attention_pass.py`).
+**1. Generation** (`pipeline/generate.py`).
 For every question each model gives one greedy answer and 10 sampled answers.
-The script stores the texts, token log-probs, per-step entropies and
-mean-pooled hidden states of every layer; a second pass in eager attention
-computes AttentionScore. Sampling settings and system prompts per model are in
+The script stores the texts, the token log-probs and per-step entropies of
+the greedy answer, and the sequence log-probs of the samples. Sampling settings and system prompts per model are in
 `configs/models.tsv`; token budgets are 256, with 640 for math, 384 for
 summarization and 768 for unanswerable items. Phi-4 (14B, bf16) is the largest
-model and fits on a 48 GB card. Both steps resume after an interruption.
+model and fits on a 48 GB card. Generation resumes after an interruption.
 
 **2. NLI graphs** (`pipeline/nli_matrices.py`). Entailment and contradiction
 probabilities between every pair of sampled answers, from
@@ -64,38 +63,34 @@ reference by J1 (`gpt-5.6-luna`, reasoning effort low) and J2
 then `status` until done, then `fetch`.
 
 **4. Analysis** (`analysis/`). Run `benchmark.py` first: it writes the
-per-question scores that every other script reads. `cert_final.py` needs
-`cert_sensitivity.py`, and `fig_risk_coverage.py` needs `cert_final.py`;
-`make paper-tables` runs them in order.
+per-question scores that every other script reads, and
+`fig_risk_coverage.py` needs `cert_final.py`; `make paper-tables` runs them
+in order. Shared splits, loaders and the certificate are in `protocol.py`.
 
 ## Where each result comes from
 
 | Paper result | Script | Output (`results/`) |
 |---|---|---|
-| Benchmark, pooled AUROC (both judges) | `benchmark.py` | `benchmark.json` |
+| Table 2, pooled AUROC (both judges) | `benchmark.py` | `benchmark.json` |
+| Table 2, within-task AUROC and TaskPrior | `task_control.py` | `task_control.json` |
 | Pooled gaps and per-task intervals | `bootstrap_ci.py` | `bootstrap_ci.json` |
-| Within-task AUROC and its intervals | `within_task_bench.py` | `within_task_bench.json` |
-| TaskPrior reference, pooled vs. within task | `task_control.py` | `task_control.json` |
-| Per-task AUROC, judge agreement, error rates | `tiers.py` | `tiers.json` |
-| Probes: layer sweep, leave-one-task-out, calibration | `tiers.py` | `tiers.json` |
-| Certified coverage, threshold transfer, per-task failures | `cert_final.py` | `cert_final.json` |
-| Procedure and truncation checks | `cert_sensitivity.py` | `cert_sensitivity.json` |
-| Risk-coverage figure | `fig_risk_coverage.py` | `fig_risk_coverage.pdf` |
-| Probe vs. supervised baseline | `supervised_baseline.py`, `probe_control.py` | `supervised_baseline.json`, `probe_control.json` |
-| Task x score interaction baseline | `sup_interaction.py` | `sup_interaction.json` |
-| Label budget for certification | `budget_control.py` | `budget_control.json` |
-| Probe transfer across models | `lineage_within.py` | `lineage_within.json` |
+| Within-task gaps and their intervals | `within_task_bench.py` | `within_task_bench.json` |
+| Table 3, per-task AUROC; judge agreement (Sec. 5.1) | `per_task.py` | `per_task.json` |
+| Table 4, exceedance rates, threshold transfer, per-task error, Mondrian at delta/12 | `cert_final.py` | `cert_final.json` |
+| Figure 1, risk-coverage curves | `fig_risk_coverage.py` | `fig_risk_coverage.pdf` |
+| Certification procedures and truncation (Sec. 5.2-5.3) | `cert_sensitivity.py` | `cert_sensitivity.json` |
+| Pair-weighted, cross-task and standardized AUROC; non-empty certificates; complement check; transfer by direction; per-task oracle; Mondrian at delta; first-level check | `checks.py` | `checks.json` |
 
 All splits are by question and shared across models: 20 calibration/test
-splits of 500/700 questions (5 for the probes), with 200 of the 700 test
+splits of 500/700 questions, with 200 of the 700 test
 questions kept unlabelled to fix the certification thresholds.
 
 ## Code layout
 
 ```
 configs/models.tsv   models, sampling settings, system prompts
-pipeline/            generation, attention pass, NLI graphs, judges
-analysis/            scoring, certification, probes, figure
+pipeline/            generation, NLI graphs, judges
+analysis/            scoring, certification, checks, figure
 viuq/config.py       paths
 viuq/fingerprint.py  dataset hash, checked before generations are reused
 viuq/lmpg/           the lm-polygraph estimators used (KLE, DegMat, NumSemSets, SE)

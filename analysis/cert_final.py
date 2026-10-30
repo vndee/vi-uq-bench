@@ -10,10 +10,9 @@ Outputs (results/cert_final.json):
   self       violations under per-model calibration
   transfer   threshold transfer across models at alpha 0.2
   per_task   per-task error of the marginal certificate at alpha 0.2 / 0.3,
-             and per-task (Mondrian) coverage
-  budget     copied from cert_sensitivity.json
+             and per-task (Mondrian) coverage at delta/12 per task
 
-Usage: python analysis/cert_final.py   (after cert_sensitivity.py)
+Usage: python analysis/cert_final.py
 """
 import json
 import os
@@ -26,9 +25,8 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 from viuq.config import SCORES  # noqa: E402
 from benchmark import DISPLAY, KEYS  # noqa: E402
-from cert_sensitivity import certify  # noqa: E402
-from tiers import (DELTA, OUT_DIR, apply_threshold, grid_split,  # noqa: E402
-                        load_model, splits)
+from protocol import (DELTA, OUT_DIR, apply_threshold, certify,  # noqa: E402
+                      grid_split, load_model, splits)
 
 PROC = "asc20"
 ALPHAS = (0.1, 0.15, 0.2, 0.3)
@@ -170,9 +168,6 @@ def main():
     out["self_bonf"] = {j: self_violation(bf[j]) for j in bf}
     out["transfer"] = transfer(models, SP)
     out["per_task"] = per_task(models, SP)
-    sens = json.load(open(os.path.join(OUT_DIR, "cert_sensitivity.json")))
-    out["budget"] = sens["budget_asc20"]
-    out["budget_bonf"] = sens["budget_bonf"]
 
     print("Certified coverage (J1, asc20):")
     for k in sorted(KEYS, key=lambda k: t4["luna"][k]["base_err"]):

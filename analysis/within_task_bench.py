@@ -17,10 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 from viuq.config import SCORES  # noqa: E402
-from benchmark import KEYS  # noqa: E402
-from probe_control import fauc  # noqa: E402
-from task_control import METHODS  # noqa: E402
-from tiers import OUT_DIR, load_model  # noqa: E402
+from benchmark import KEYS, METHODS  # noqa: E402
+from protocol import OUT_DIR, fauc, load_model  # noqa: E402
 
 B = 2000
 PAIRS = (("KLE", "SE"), ("KLE", "MTE"), ("KLE", "DegMat"), ("KLE", "MSP"),

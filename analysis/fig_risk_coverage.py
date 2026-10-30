@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 from viuq.config import SCORES  # noqa: E402
 from benchmark import DISPLAY, KEYS  # noqa: E402
-from tiers import OUT_DIR, load_model  # noqa: E402
+from protocol import OUT_DIR, load_model  # noqa: E402
 
 ALPHA = 0.15
 HIGHLIGHT = {"qwen3": ("#2a78d6", "-"), "gemma3": ("#eb6834", "--")}

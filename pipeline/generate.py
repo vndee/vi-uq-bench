@@ -1,23 +1,16 @@
 """Generation: one GPU pass per model, capturing everything later stages need.
 
 Only work that needs the model weights happens here. NLI graphs, scoring,
-judging, certification and probes all run later from the saved files.
+judging and certification all run later from the saved files.
 
 Per question it stores:
   greedy text and token ids             judging
   per-token log-probs of the greedy     MSP, perplexity
   per-step predictive entropy           mean token entropy
   K sampled answers + log-probs         SE, MC-SE, DegMat, KLE, NumSemSets
-  mean-pooled hidden states, all        probes (taken from the generated
-    layers, and the last prompt token   sequence itself)
   token count and an end-of-turn flag   truncation, MeanLength
 
-Two phases, because attention weights need eager attention, which is about
-twice as slow:
-  phase a (sdpa)   greedy answer + K samples, log-probs, entropies, hidden
-                   states -> gen_<key>.jsonl, arrays_<key>.npz
-  phase b (eager)  one teacher-forced forward per question for
-                   AttentionScore (see attention_pass.py)
+Texts go to gen_<key>.jsonl, log-probs and entropies to arrays_<key>.npz.
 
 Decoding uses skip_special_tokens=True. Whether an answer ended naturally is
 decided by length first (generated < budget), because chat models stop on a
@@ -29,7 +22,7 @@ and the script refuses to add to a directory built from another dataset.
 Usage (settings per model are in configs/models.tsv):
   python pipeline/generate.py --model-id google/gemma-3-12b-it --key gemma3 \
     --system-prompt "..." --n-samples 10 --max-new-tokens 256 \
-    --temperature 1.0 --top-p 0.95 --top-k 20 --seed 1 --phase a
+    --temperature 1.0 --top-p 0.95 --top-k 20 --seed 1
 """
 import argparse
 import json
@@ -82,7 +75,7 @@ def stop_ids(tok, model, extra):
 
 @torch.no_grad()
 def greedy_capture(model, tok, prompt_ids, args, stops, budget=None):
-    """Greedy answer + per-token logprob + per-step entropy + hidden states.
+    """Greedy answer + per-token logprob + per-step entropy.
 
     `budget` overrides args.max_new_tokens for this item (see --task-budget)
     and also drives the truncation flag.
@@ -95,7 +88,6 @@ def greedy_capture(model, tok, prompt_ids, args, stops, budget=None):
         eos_token_id=list(stops) or tok.eos_token_id,
         pad_token_id=tok.pad_token_id or tok.eos_token_id,
         output_scores=True, return_dict_in_generate=True,
-        output_hidden_states=True,
     )
     gen = out.sequences[0, prompt_ids.shape[0]:]
     n_gen = int(gen.shape[0])
@@ -108,21 +100,10 @@ def greedy_capture(model, tok, prompt_ids, args, stops, budget=None):
         p = logp.exp()
         ents.append(float(-(p * logp).sum()))
 
-    n_layers = len(out.hidden_states[0])
-    dim = out.hidden_states[0][0].shape[-1]
-    hs_answer = np.zeros((n_layers, dim), dtype=np.float32)
-    hs_prompt = np.zeros((n_layers, dim), dtype=np.float32)
-    ans_steps = out.hidden_states[1:] or out.hidden_states
-    for li in range(n_layers):
-        hs_prompt[li] = out.hidden_states[0][li][0, -1, :].float().cpu().numpy()
-        hs_answer[li] = np.mean([st[li][0, -1, :].float().cpu().numpy()
-                                 for st in ans_steps], axis=0)
-
     text = tok.decode(gen, skip_special_tokens=True).strip()
     hit_eos = (n_gen < budget) or bool(set(gen.tolist()) & stops)
     return dict(text=text, ids=gen.tolist(), logprobs=lps, entropies=ents,
-                n_tokens=n_gen, hit_eos=hit_eos,
-                hidden_answer=hs_answer, hidden_prompt=hs_prompt)
+                n_tokens=n_gen, hit_eos=hit_eos)
 
 
 @torch.no_grad()
@@ -163,49 +144,6 @@ def sample_capture(model, tok, prompt_ids, args, stops, budget=None):
                 n_tokens=ntoks)
 
 
-@torch.no_grad()
-def attention_score(model, tok, prompt_ids, answer_ids):
-    """AttentionScore, matching lm_polygraph/estimators/attention_score.py.
-
-    Verified against the published implementation, which is:
-        layer = num_hidden_layers // 2      (config default, gen_only=False)
-        ue_i  = (1/H) * sum_h sum_t log( A[layer][h][t][t] + 1e-12 )
-        score = -ue_i
-    i.e. the SELF-attention diagonal, summed over ALL positions of the full
-    prompt+answer sequence (not just generated ones, since gen_only
-    defaults to False and the configs pass no arguments), averaged over
-    heads, then negated.
-
-    The sum over positions makes the score scale with sequence length;
-    that is a property of the published estimator and is kept as is. The
-    answer-only and length-averaged variants are returned alongside it.
-
-    One teacher-forced forward, no generation loop, so this costs a small
-    fraction of phase A. Requires eager attention.
-    """
-    ids = torch.cat([prompt_ids,
-                     torch.tensor(answer_ids, device=prompt_ids.device,
-                                  dtype=prompt_ids.dtype)])
-    out = model(ids.unsqueeze(0), output_attentions=True)
-    cfg = getattr(model.config, "text_config", model.config)
-    layer = cfg.num_hidden_layers // 2
-    A = out.attentions[layer][0].float()
-    if A.shape[-1] != A.shape[-2]:
-        return float("nan")
-    diag = torch.diagonal(A, dim1=-2, dim2=-1)
-    n_prompt = int(prompt_ids.shape[0])
-    full = torch.log(diag + 1e-12).sum(dim=-1).mean()
-    gen = torch.log(diag[:, n_prompt:] + 1e-12).sum(dim=-1).mean() \
-        if diag.shape[-1] > n_prompt else torch.tensor(float("nan"))
-    full_mean = torch.log(diag + 1e-12).mean(dim=-1).mean()
-    gen_mean = torch.log(diag[:, n_prompt:] + 1e-12).mean(dim=-1).mean() \
-        if diag.shape[-1] > n_prompt else torch.tensor(float("nan"))
-    return {"attn_score": float(-full),
-            "attn_gen_only": float(-gen),
-            "attn_full_mean": float(-full_mean),
-            "attn_gen_mean": float(-gen_mean)}
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model-id", required=True)
@@ -230,9 +168,6 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--only-idx", default=None)
-    ap.add_argument("--phase", choices=["a", "b", "both"], default="both")
-    ap.add_argument("--no-hidden", action="store_true",
-                    help="skip hidden states (saves ~0.4 GB/model; probes need them)")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -287,20 +222,15 @@ def main():
         todo = [i for i in range(len(questions)) if i not in have]
     print(f"{len(todo)} questions to process -> {jl}", flush=True)
 
-    if args.phase == "both":
-        print("NOTE --phase both runs generation under EAGER attention "
-              "(~2x slower). Prefer '--phase a' then '--phase b'.", flush=True)
-    attn_impl = "eager" if args.phase in ("b", "both") else "sdpa"
-    print(f"loading {args.model_id} (attn={attn_impl})", flush=True)
+    print(f"loading {args.model_id}", flush=True)
     tok = AutoTokenizer.from_pretrained(args.model_id, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         args.model_id, torch_dtype="auto", device_map="cuda",
-        attn_implementation=attn_impl, trust_remote_code=True).eval()
+        attn_implementation="sdpa", trust_remote_code=True).eval()
     stops = stop_ids(tok, model, extra_eos)
     print(f"stop ids: {sorted(stops)}", flush=True)
 
-    acc = {k: [] for k in ("idx", "hid_ans", "hid_pr", "attn", "g_lp",
-                           "g_ent", "s_lp")}
+    acc = {k: [] for k in ("idx", "g_lp", "g_ent", "s_lp")}
     if not args.only_idx and have:
         npz_idx = set()
         if os.path.exists(npz):
@@ -335,22 +265,14 @@ def main():
             with np.load(npz, allow_pickle=True) as z:
                 prev = z["idx"].tolist()
                 keep = [k for k, i in enumerate(prev) if i in have]
-                a_attn = z["attn_score"]
                 a_slp = z["sample_seq_logprobs"]
                 a_glp = z["greedy_logprobs"]
                 a_gent = z["greedy_entropies"]
-                has_hid = "hidden_answer_mean" in z.files
-                a_ha = z["hidden_answer_mean"] if has_hid else None
-                a_hp = z["hidden_last_prompt"] if has_hid else None
                 for k in keep:
                     acc["idx"].append(int(prev[k]))
-                    acc["attn"].append(float(a_attn[k]))
                     acc["s_lp"].append(a_slp[k])
                     acc["g_lp"].append(a_glp[k])
                     acc["g_ent"].append(a_gent[k])
-                    if has_hid:
-                        acc["hid_ans"].append(a_ha[k])
-                        acc["hid_pr"].append(a_hp[k])
             print(f"npz resume: carried {len(acc['idx'])} of {len(prev)} existing "
                   f"rows forward (jsonl has {len(have)})", flush=True)
             assert len(acc["idx"]) == len(have), (
@@ -369,8 +291,6 @@ def main():
             g = greedy_capture(model, tok, pid, args, stops, budget=bud)
             torch.manual_seed(args.seed + i)
             s = sample_capture(model, tok, pid, args, stops, budget=bud)
-            a = (attention_score(model, tok, pid, g["ids"])["attn_score"]
-                 if args.phase in ("b", "both") else float("nan"))
 
             f.write(json.dumps({
                 "idx": i, "id": ids[i], "question": questions[i],
@@ -389,10 +309,6 @@ def main():
             acc["g_lp"].append(np.asarray(g["logprobs"], np.float32))
             acc["g_ent"].append(np.asarray(g["entropies"], np.float32))
             acc["s_lp"].append(np.asarray(s["seq_logprobs"], np.float32))
-            acc["attn"].append(a)
-            if not args.no_hidden:
-                acc["hid_ans"].append(g["hidden_answer"].astype(np.float32))
-                acc["hid_pr"].append(g["hidden_prompt"].astype(np.float32))
 
             if n % 25 == 0:
                 print(f"{n}/{len(todo)} (idx {i})", flush=True)
@@ -436,13 +352,9 @@ def _save(npz, acc, args):
             if acc[k]:
                 acc[k] = [acc[k][i] for i in order]
     out = {"idx": np.asarray(acc["idx"], np.int32),
-           "attn_score": np.asarray(acc["attn"], np.float32),
            "sample_seq_logprobs": np.stack(acc["s_lp"]),
            "greedy_logprobs": np.array(acc["g_lp"], dtype=object),
            "greedy_entropies": np.array(acc["g_ent"], dtype=object)}
-    if acc["hid_ans"]:
-        out["hidden_answer_mean"] = np.stack(acc["hid_ans"])
-        out["hidden_last_prompt"] = np.stack(acc["hid_pr"])
     np.savez(npz, **out)
 
 
