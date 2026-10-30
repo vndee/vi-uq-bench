@@ -62,8 +62,9 @@ def ratio_ci(num, den, rng):
         d = den[i].sum()
         if d > 0:
             bs.append(num[i].sum() / d)
-    return {"rate": float(est), "lo": float(np.quantile(bs, .025)),
-            "hi": float(np.quantile(bs, .975)),
+    lo, hi = (np.quantile(bs, [.025, .975]) if bs else (np.nan, np.nan))
+    return {"rate": float(est) if den.sum() else float("nan"),
+            "lo": float(lo), "hi": float(hi),
             "num": int(num.sum()), "den": int(den.sum())}
 
 

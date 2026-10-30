@@ -3,13 +3,16 @@
 This folder is intentionally empty.
 
 The dataset (1,200 Vietnamese questions, 12 task types, with reference
-answers) is not published in this repository. It is kept off the public web so
-that it does not end up in the training data of future language models, which
-would make it useless as a benchmark.
+answers) is not stored in this repository. It is on the Hugging Face Hub at
+https://huggingface.co/datasets/vndee/vi-uq-bench with gated access, so
+that it does not end up in the training data of future language models,
+which would make it useless as a benchmark. Request access on that page;
+please do not redistribute the file or post it publicly.
 
-To get a copy for research use, email the authors at `duyhv@pm.me` with
-your name, affiliation and intended use. Please do not redistribute it or post
-it publicly.
+```bash
+huggingface-cli download vndee/vi-uq-bench data/test.csv --repo-type dataset --local-dir hf
+cp hf/data/test.csv data/dataset.csv
+```
 
 Place the file here as `data/dataset.csv`, or point `VIUQ_DATASET` at it.
 `python -m viuq.fingerprint` prints its fingerprint; the copy used in the paper

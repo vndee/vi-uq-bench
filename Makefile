@@ -40,6 +40,8 @@ paper-tables:
 	$(PY) $(A)/cert_sensitivity.py
 	$(PY) $(A)/checks.py
 	$(PY) $(A)/split_robustness.py
+	$(PY) $(A)/review_checks.py
+	$(PY) $(A)/review_checks2.py
 
 check:
 	$(PY) -m viuq.fingerprint --check artifacts/generations

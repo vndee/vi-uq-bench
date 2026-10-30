@@ -7,15 +7,16 @@ The repository contains the full pipeline: generating answers with eight open
 LLMs, building the NLI graphs, judging correctness with two LLM judges,
 scoring eight uncertainty methods and a length control, and certifying
 selective answering with Learn-then-Test. It contains **no data and no run
-outputs**. The dataset is available on request (below); everything
-else is produced by running the pipeline.
+outputs**. The dataset is on the Hugging Face Hub with gated access
+(below); everything else is produced by running the pipeline.
 
 ## Dataset
 
 The benchmark has 1,200 Vietnamese questions, 100 for each of 12 task types.
-To keep it out of the training data of future models, it is not posted
-online. Email `duyhv@pm.me` with your name, affiliation and intended use
-to get a copy, and see [data/README.md](data/README.md) for where to put it.
+It is at [huggingface.co/datasets/vndee/vi-uq-bench](https://huggingface.co/datasets/vndee/vi-uq-bench).
+To keep it out of the training data of future models, access is gated and
+approved by hand: request it on that page with your name, affiliation and
+intended use. See [data/README.md](data/README.md) for where to put the file.
 
 ## Setup
 
@@ -81,6 +82,8 @@ in order. Shared splits, loaders and the certificate are in `protocol.py`.
 | Certification procedures and truncation (Sec. 5.2-5.3) | `cert_sensitivity.py` | `cert_sensitivity.json` |
 | Pair-weighted, cross-task and standardized AUROC; non-empty certificates; complement check; transfer by direction; per-task oracle; Mondrian at delta; first-level check | `checks.py` | `checks.json` |
 | 500-split rates with intervals: self-calibrated exceedance on the test split and on the full question pool, transfer by direction, per-task exceedance | `split_robustness.py` | `split_robustness.json` |
+| Within-task AUROC without sparse (model, task) cells; per-task oracle for KLE, MSP and MTE; raw vs. retention-level transfer; per-task certification with fewer levels and by task group | `review_checks.py` | `review_checks.json` |
+| Bonferroni vs. fixed-sequence exceedance (500 splits); transfer measured on the full pool; two-level (questions x splits) intervals; TaskPrior + KLE and per-task score choice; certificates built on MSP / MTE | `review_checks2.py` | `review_checks2.json` |
 
 All splits are by question and shared across models: 20 calibration/test
 splits of 500/700 questions (500 in `split_robustness.py`), with 200 of the 700 test
