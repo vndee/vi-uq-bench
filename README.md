@@ -80,9 +80,10 @@ in order. Shared splits, loaders and the certificate are in `protocol.py`.
 | Figure 1, risk-coverage curves | `fig_risk_coverage.py` | `fig_risk_coverage.pdf` |
 | Certification procedures and truncation (Sec. 5.2-5.3) | `cert_sensitivity.py` | `cert_sensitivity.json` |
 | Pair-weighted, cross-task and standardized AUROC; non-empty certificates; complement check; transfer by direction; per-task oracle; Mondrian at delta; first-level check | `checks.py` | `checks.json` |
+| 500-split rates with intervals: self-calibrated exceedance on the test split and on the full question pool, transfer by direction, per-task exceedance | `split_robustness.py` | `split_robustness.json` |
 
 All splits are by question and shared across models: 20 calibration/test
-splits of 500/700 questions, with 200 of the 700 test
+splits of 500/700 questions (500 in `split_robustness.py`), with 200 of the 700 test
 questions kept unlabelled to fix the certification thresholds.
 
 ## Code layout

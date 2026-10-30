@@ -39,6 +39,7 @@ paper-tables:
 	$(PY) $(A)/fig_risk_coverage.py
 	$(PY) $(A)/cert_sensitivity.py
 	$(PY) $(A)/checks.py
+	$(PY) $(A)/split_robustness.py
 
 check:
 	$(PY) -m viuq.fingerprint --check artifacts/generations
